@@ -1,0 +1,13 @@
+{
+  "api_key": "",
+  "model": "deepseek/deepseek-v3.2",
+  "providers": [],
+  "instruct_template": "chatml",
+  "context_length": 8192,
+  "response_length": 1024,
+  "temperature": 0.9,
+  "top_p": 0.95,
+  "top_k": 40,
+  "repetition_penalty": 1.1,
+  "min_p": 0.05
+}

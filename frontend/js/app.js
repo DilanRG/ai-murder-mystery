@@ -67,38 +67,301 @@ $('#btn-new-game').addEventListener('click', () => {
     showScreen('setup');
 });
 
-$('#btn-settings').addEventListener('click', () => {
+$('#btn-settings').addEventListener('click', async () => {
     $('#modal-settings').classList.remove('hidden');
+    await loadSettingsIntoForm();
 });
 
 // ── Settings Modal ──────────────────────────────────────
-$('#btn-close-settings').addEventListener('click', () => {
-    $('#modal-settings').classList.add('hidden');
-});
-$('#modal-settings .modal-backdrop').addEventListener('click', () => {
-    $('#modal-settings').classList.add('hidden');
-});
+let _modelSearchTimeout = null;
+let _selectedModelId = '';
+let _selectedProviders = [];
+let _allKnownProviders = [];
 
+function closeSettings() {
+    $('#modal-settings').classList.add('hidden');
+    $('#model-results').classList.add('hidden');
+    $('#provider-results').classList.add('hidden');
+}
+
+$('#btn-close-settings').addEventListener('click', closeSettings);
+$('#btn-close-settings-2').addEventListener('click', closeSettings);
+$('#modal-settings .modal-backdrop').addEventListener('click', closeSettings);
+
+// Range sliders — live value display
 $('#input-temperature').addEventListener('input', (e) => {
     $('#temp-value').textContent = e.target.value;
 });
+$('#input-top-p').addEventListener('input', (e) => {
+    $('#top-p-value').textContent = e.target.value;
+});
+$('#input-rep-penalty').addEventListener('input', (e) => {
+    $('#rep-value').textContent = e.target.value;
+});
 
+// API key reveal toggle
+$('#btn-reveal-key').addEventListener('click', () => {
+    const input = $('#input-api-key');
+    input.type = input.type === 'password' ? 'text' : 'password';
+});
+
+// Connection test
+$('#btn-connect').addEventListener('click', async () => {
+    const keyInput = $('#input-api-key');
+    const key = keyInput.value.trim();
+    if (!key) { alert('Enter an API key first.'); return; }
+
+    $('#connection-text').textContent = 'Connecting...';
+    try {
+        const result = await api('/api/settings', 'POST', { api_key: key });
+        updateConnectionStatus(result.connected);
+    } catch (e) {
+        updateConnectionStatus(false);
+    }
+});
+
+function updateConnectionStatus(connected) {
+    const dot = $('#connection-dot');
+    const text = $('#connection-text');
+    dot.classList.toggle('connected', connected);
+    dot.classList.toggle('disconnected', !connected);
+    text.textContent = connected ? 'Connected' : 'Not connected';
+}
+
+// Load current settings into the form
+async function loadSettingsIntoForm() {
+    try {
+        const s = await api('/api/settings');
+        // Connection
+        if (s.api_key_set && !$('#input-api-key').value) {
+            $('#input-api-key').value = '';
+            $('#input-api-key').placeholder = s.api_key || 'sk-or-v1-...';
+        }
+        updateConnectionStatus(s.connected);
+
+        // Model
+        _selectedModelId = s.model || '';
+        if (_selectedModelId) {
+            $('#model-selected').classList.remove('hidden');
+            $('#model-selected-name').textContent = _selectedModelId;
+        } else {
+            $('#model-selected').classList.add('hidden');
+        }
+
+        // Providers
+        _selectedProviders = s.providers || [];
+        renderProviderTags();
+
+        // Generation
+        $('#input-context-length').value = s.context_length || 8192;
+        $('#input-response-length').value = s.response_length || 1024;
+
+        // Load instruct presets
+        const presets = await api('/api/instruct-presets');
+        const select = $('#select-instruct');
+        select.innerHTML = '';
+        presets.presets.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name;
+            if (p.id === s.instruct_template) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        // Samplers
+        $('#input-temperature').value = s.temperature ?? 0.9;
+        $('#temp-value').textContent = s.temperature ?? 0.9;
+        $('#input-top-p').value = s.top_p ?? 0.95;
+        $('#top-p-value').textContent = s.top_p ?? 0.95;
+        $('#input-top-k').value = s.top_k ?? 40;
+        $('#input-min-p').value = s.min_p ?? 0.05;
+        $('#input-rep-penalty').value = s.repetition_penalty ?? 1.1;
+        $('#rep-value').textContent = s.repetition_penalty ?? 1.1;
+    } catch (e) {
+        console.warn('Failed to load settings:', e);
+    }
+}
+
+// ── Model Search ────────────────────────────────────────
+$('#input-model-search').addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    clearTimeout(_modelSearchTimeout);
+    if (query.length < 2) {
+        $('#model-results').classList.add('hidden');
+        return;
+    }
+    // Show loading
+    const results = $('#model-results');
+    results.innerHTML = '<div class="model-result-loading">Searching...</div>';
+    results.classList.remove('hidden');
+
+    _modelSearchTimeout = setTimeout(() => searchModels(query), 350);
+});
+
+$('#input-model-search').addEventListener('focus', (e) => {
+    if (e.target.value.trim().length >= 2) {
+        searchModels(e.target.value.trim());
+    }
+});
+
+// Close model results on click outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.model-search-container')) {
+        $('#model-results').classList.add('hidden');
+    }
+    if (!e.target.closest('.provider-container')) {
+        $('#provider-results').classList.add('hidden');
+    }
+});
+
+async function searchModels(query) {
+    try {
+        const data = await api(`/api/models/search?q=${encodeURIComponent(query)}`);
+        const results = $('#model-results');
+
+        if (data.models.length === 0) {
+            results.innerHTML = '<div class="model-result-empty">No models found</div>';
+            results.classList.remove('hidden');
+            return;
+        }
+
+        // Collect providers for the provider search
+        const providerSet = new Set(_allKnownProviders);
+        data.models.forEach(m => { if (m.provider) providerSet.add(m.provider); });
+        _allKnownProviders = [...providerSet].sort();
+
+        results.innerHTML = data.models.map(m => {
+            const isSelected = m.id === _selectedModelId;
+            const ctxK = m.context_length >= 1000 ? `${Math.round(m.context_length / 1024)}k` : m.context_length;
+            const price = m.prompt_price === 0 ? 'Free' : `$${m.prompt_price}/M tok`;
+            return `
+                <div class="model-result-item${isSelected ? ' selected' : ''}"
+                     data-model-id="${m.id}" data-model-name="${m.name}" data-ctx="${m.context_length}">
+                    <div class="model-result-name">${m.name}</div>
+                    <div class="model-result-meta">${ctxK} ctx | ${price}</div>
+                </div>
+            `;
+        }).join('');
+        results.classList.remove('hidden');
+
+        // Click handlers for model results
+        results.querySelectorAll('.model-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                _selectedModelId = item.dataset.modelId;
+                $('#model-selected').classList.remove('hidden');
+                $('#model-selected-name').textContent = `${item.dataset.modelName}`;
+                $('#input-model-search').value = '';
+                results.classList.add('hidden');
+
+                // Auto-set context length from model
+                const ctx = parseInt(item.dataset.ctx);
+                if (ctx > 0) {
+                    $('#input-context-length').value = ctx;
+                }
+            });
+        });
+    } catch (e) {
+        $('#model-results').innerHTML = '<div class="model-result-empty">Search failed</div>';
+    }
+}
+
+// Clear selected model
+$('#btn-clear-model').addEventListener('click', () => {
+    _selectedModelId = '';
+    $('#model-selected').classList.add('hidden');
+    $('#model-selected-name').textContent = '';
+});
+
+// ── Provider Tags ───────────────────────────────────────
+function renderProviderTags() {
+    const container = $('#provider-tags');
+    container.innerHTML = _selectedProviders.map(p => `
+        <span class="provider-tag">
+            <button class="provider-tag-remove" data-provider="${p}">✕</button>
+            ${p}
+        </span>
+    `).join('');
+
+    container.querySelectorAll('.provider-tag-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _selectedProviders = _selectedProviders.filter(x => x !== btn.dataset.provider);
+            renderProviderTags();
+        });
+    });
+}
+
+$('#input-provider-search').addEventListener('input', (e) => {
+    const query = e.target.value.trim().toLowerCase();
+    const results = $('#provider-results');
+
+    if (!query) {
+        results.classList.add('hidden');
+        return;
+    }
+
+    // Filter known providers
+    const filtered = _allKnownProviders
+        .filter(p => p.toLowerCase().includes(query) && !_selectedProviders.includes(p));
+
+    if (filtered.length === 0) {
+        results.classList.add('hidden');
+        return;
+    }
+
+    results.innerHTML = filtered.slice(0, 15).map(p => `
+        <div class="provider-result-item" data-provider="${p}">${p}</div>
+    `).join('');
+    results.classList.remove('hidden');
+
+    results.querySelectorAll('.provider-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+            _selectedProviders.push(item.dataset.provider);
+            renderProviderTags();
+            $('#input-provider-search').value = '';
+            results.classList.add('hidden');
+        });
+    });
+});
+
+// ── Save Settings ───────────────────────────────────────
 $('#btn-save-settings').addEventListener('click', async () => {
-    const apiKey = $('#input-api-key').value.trim();
-    const model = $('#input-model').value;
-    const temperature = parseFloat($('#input-temperature').value);
+    const payload = {};
+
+    // API key — only send if user typed a new one
+    const keyInput = $('#input-api-key');
+    if (keyInput.value.trim()) {
+        payload.api_key = keyInput.value.trim();
+    }
+
+    // Model
+    if (_selectedModelId) {
+        payload.model = _selectedModelId;
+    }
+
+    // Providers
+    payload.providers = _selectedProviders;
+
+    // Generation
+    payload.instruct_template = $('#select-instruct').value;
+    payload.context_length = parseInt($('#input-context-length').value) || 8192;
+    payload.response_length = parseInt($('#input-response-length').value) || 1024;
+
+    // Samplers
+    payload.temperature = parseFloat($('#input-temperature').value);
+    payload.top_p = parseFloat($('#input-top-p').value);
+    payload.top_k = parseInt($('#input-top-k').value) || 0;
+    payload.min_p = parseFloat($('#input-min-p').value) || 0;
+    payload.repetition_penalty = parseFloat($('#input-rep-penalty').value);
 
     try {
-        await api('/api/settings', 'POST', {
-            api_key: apiKey || undefined,
-            model: model || undefined,
-            temperature,
-        });
-        $('#modal-settings').classList.add('hidden');
+        const result = await api('/api/settings', 'POST', payload);
+        updateConnectionStatus(result.connected);
+        closeSettings();
     } catch (e) {
         alert('Failed to save settings: ' + e.message);
     }
 });
+
 
 // ── Setup Screen ────────────────────────────────────────
 $$('.role-card').forEach((card) => {

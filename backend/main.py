@@ -13,6 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from config.settings import get_settings
+from config.user_settings import (
+    get_user_config,
+    save_user_config,
+    apply_user_config_to_settings,
+    load_user_config,
+)
 from game.engine import GameEngine, GameState
 
 # Logging setup
@@ -31,11 +37,14 @@ engine = GameEngine()
 async def lifespan(app: FastAPI):
     """App startup/shutdown lifecycle."""
     logger.info("🔪 AI Murder Mystery Game — Backend Starting...")
+    # Load saved user config and apply to runtime settings
+    load_user_config()
+    apply_user_config_to_settings()
     try:
         await engine.initialize()
         logger.info("✅ Backend ready")
     except Exception as e:
-        logger.warning("⚠️  LLM not connected: %s (configure API key to play)", e)
+        logger.warning("⚠️  LLM not connected: %s (configure via Settings)", e)
     yield
     logger.info("Backend shutting down")
 
@@ -82,8 +91,15 @@ class AccuseRequest(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     api_key: Optional[str] = None
     model: Optional[str] = None
+    providers: Optional[list[str]] = None
+    instruct_template: Optional[str] = None
+    context_length: Optional[int] = None
+    response_length: Optional[int] = None
     temperature: Optional[float] = None
     top_p: Optional[float] = None
+    top_k: Optional[int] = None
+    repetition_penalty: Optional[float] = None
+    min_p: Optional[float] = None
 
 
 # ── API Endpoints ───────────────────────────────────────────────
@@ -275,29 +291,124 @@ async def accuse(req: AccuseRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/settings")
+async def get_current_settings():
+    """Get current settings (API key masked)."""
+    config = get_user_config()
+    settings = get_settings()
+    return {
+        "api_key": ("***" + config["api_key"][-6:]) if len(config.get("api_key", "")) > 6 else ("•" * len(config.get("api_key", "")) if config.get("api_key") else ""),
+        "api_key_set": bool(config.get("api_key") or settings.llm.openrouter_api_key),
+        "model": config.get("model") or settings.llm.model,
+        "providers": config.get("providers", []),
+        "instruct_template": config.get("instruct_template", "chatml"),
+        "context_length": config.get("context_length", settings.llm.max_context_tokens),
+        "response_length": config.get("response_length", settings.llm.max_response_tokens),
+        "temperature": config.get("temperature", settings.sampler.temperature),
+        "top_p": config.get("top_p", settings.sampler.top_p),
+        "top_k": config.get("top_k", settings.sampler.top_k),
+        "repetition_penalty": config.get("repetition_penalty", settings.sampler.repetition_penalty),
+        "min_p": config.get("min_p", settings.sampler.min_p),
+        "connected": engine.llm_client is not None,
+    }
+
+
 @app.post("/api/settings")
 async def update_settings(req: SettingsUpdateRequest):
-    """Update runtime settings (API key, model, etc.)."""
-    settings = get_settings()
+    """Update and persist all settings."""
+    config = get_user_config()
 
-    if req.api_key is not None:
-        settings.llm.openrouter_api_key = req.api_key
-        # Reinitialize the engine with new key
+    # Update config with non-None values
+    updates = req.model_dump(exclude_none=True)
+    config.update(updates)
+    save_user_config(config)
+
+    # Apply to runtime settings
+    apply_user_config_to_settings()
+
+    # Reinitialize LLM client if connection-related settings changed
+    if any(k in updates for k in ("api_key", "model")):
         try:
             await engine.initialize()
+            return {"status": "ok", "message": "Settings saved. LLM reconnected.", "connected": True}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            return {"status": "ok", "message": f"Settings saved. LLM error: {e}", "connected": False}
 
-    if req.model is not None:
-        settings.llm.model = req.model
+    return {"status": "ok", "message": "Settings saved.", "connected": engine.llm_client is not None}
 
-    if req.temperature is not None:
-        settings.sampler.temperature = req.temperature
 
-    if req.top_p is not None:
-        settings.sampler.top_p = req.top_p
+@app.get("/api/models/search")
+async def search_models(q: str = ""):
+    """Search available models from OpenRouter."""
+    import httpx
 
-    return {"status": "ok", "message": "Settings updated"}
+    settings = get_settings()
+    config = get_user_config()
+    api_key = config.get("api_key") or settings.llm.openrouter_api_key
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            headers = {}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            resp = await client.get(
+                f"{settings.llm.openrouter_base_url}/models",
+                headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.error("Model search failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Failed to fetch models: {e}")
+
+    models = data.get("data", [])
+    query_lower = q.lower()
+
+    results = []
+    for m in models:
+        model_id = m.get("id", "")
+        model_name = m.get("name", model_id)
+
+        # Filter by query
+        if query_lower and query_lower not in model_id.lower() and query_lower not in model_name.lower():
+            continue
+
+        # Extract pricing
+        pricing = m.get("pricing", {})
+        prompt_price = float(pricing.get("prompt", "0")) * 1_000_000
+        completion_price = float(pricing.get("completion", "0")) * 1_000_000
+
+        results.append({
+            "id": model_id,
+            "name": model_name,
+            "context_length": m.get("context_length", 0),
+            "prompt_price": round(prompt_price, 2),
+            "completion_price": round(completion_price, 2),
+            "provider": model_id.split("/")[0] if "/" in model_id else "",
+            "top_provider": m.get("top_provider", {}).get("max_completion_tokens"),
+        })
+
+    # Sort by name
+    results.sort(key=lambda x: x["name"].lower())
+
+    return {"models": results[:100]}  # Cap at 100 results
+
+
+@app.get("/api/instruct-presets")
+async def list_instruct_presets():
+    """List available instruct template presets."""
+    from config.settings import INSTRUCT_PRESETS_DIR
+
+    presets = []
+    if INSTRUCT_PRESETS_DIR.exists():
+        for p in sorted(INSTRUCT_PRESETS_DIR.glob("*.jinja2")):
+            presets.append({
+                "id": p.stem,
+                "name": p.stem.replace("_", " ").title(),
+                "filename": p.name,
+            })
+
+    return {"presets": presets}
 
 
 @app.get("/api/characters")

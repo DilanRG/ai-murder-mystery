@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://127.0.0.1:*; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src 'self' http://127.0.0.1:*; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
     <title>AI Murder Mystery</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
     <!-- Atmospheric background particles -->
     <div id="particles-bg"></div>
@@ -29,35 +34,114 @@
     <!-- ═══════════════ SETTINGS MODAL ═══════════════ -->
     <div id="modal-settings" class="modal hidden">
         <div class="modal-backdrop"></div>
-        <div class="modal-content glass-panel">
-            <h2 class="modal-title">Configuration</h2>
-            <div class="settings-form">
-                <div class="form-group">
-                    <label for="input-api-key">OpenRouter API Key</label>
-                    <input type="password" id="input-api-key" class="input-field" placeholder="sk-or-v1-...">
-                    <small>Get a free key at <a href="https://openrouter.ai" target="_blank">openrouter.ai</a></small>
-                </div>
-                <div class="form-group">
-                    <label for="input-model">AI Model</label>
-                    <select id="input-model" class="input-field">
-                        <option value="openai/gpt-4o-mini">GPT-4o Mini (Fast & Affordable)</option>
-                        <option value="openai/gpt-4o">GPT-4o (Best Quality)</option>
-                        <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
-                        <option value="google/gemini-pro-1.5">Gemini Pro 1.5</option>
-                        <option value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</option>
-                    </select>
-                </div>
-                <div class="form-row">
+        <div class="modal-content glass-panel settings-panel">
+            <div class="settings-header">
+                <h2 class="modal-title">⚙ Configuration</h2>
+                <button id="btn-close-settings" class="btn-icon" title="Close">✕</button>
+            </div>
+
+            <div class="settings-body">
+                <!-- Section 1: Connection -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Connection</h3>
                     <div class="form-group">
-                        <label for="input-temperature">Temperature</label>
-                        <input type="range" id="input-temperature" min="0" max="2" step="0.05" value="0.9">
-                        <span id="temp-value" class="range-value">0.9</span>
+                        <label for="input-api-key">OpenRouter API Key</label>
+                        <div class="input-row">
+                            <input type="password" id="input-api-key" class="input-field input-flex"
+                                placeholder="sk-or-v1-...">
+                            <button id="btn-reveal-key" class="btn-icon" title="Show/Hide">👁</button>
+                        </div>
+                        <small>Get a free key at <a href="https://openrouter.ai"
+                                target="_blank">openrouter.ai</a></small>
+                    </div>
+                    <div class="connection-status">
+                        <span id="connection-dot" class="status-dot disconnected"></span>
+                        <span id="connection-text">Not connected</span>
+                        <button id="btn-connect" class="btn btn-sm btn-outline">Connect</button>
                     </div>
                 </div>
-                <div class="form-actions">
-                    <button id="btn-save-settings" class="btn btn-primary">Save</button>
-                    <button id="btn-close-settings" class="btn btn-ghost">Cancel</button>
+
+                <!-- Section 2: Model -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Model</h3>
+                    <div class="form-group">
+                        <label>OpenRouter Model</label>
+                        <div class="model-search-container">
+                            <div id="model-selected" class="model-selected-chip hidden">
+                                <span id="model-selected-name"></span>
+                                <button id="btn-clear-model" class="btn-chip-clear">✕</button>
+                            </div>
+                            <input type="text" id="input-model-search" class="input-field"
+                                placeholder="Search models..." autocomplete="off">
+                            <div id="model-results" class="model-results hidden"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Model Providers <span class="optional">(optional filter)</span></label>
+                        <div class="provider-container">
+                            <div id="provider-tags" class="provider-tags"></div>
+                            <input type="text" id="input-provider-search" class="input-field input-sm"
+                                placeholder="Add provider..." autocomplete="off">
+                            <div id="provider-results" class="provider-results hidden"></div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Section 3: Generation -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Generation</h3>
+                    <div class="form-group">
+                        <label for="select-instruct">Instruct Template</label>
+                        <select id="select-instruct" class="input-field"></select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="input-context-length">Context Length</label>
+                            <input type="number" id="input-context-length" class="input-field" min="512" max="1000000"
+                                step="512" value="8192">
+                        </div>
+                        <div class="form-group">
+                            <label for="input-response-length">Response Length</label>
+                            <input type="number" id="input-response-length" class="input-field" min="64" max="32768"
+                                step="64" value="1024">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: Samplers -->
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Samplers</h3>
+                    <div class="form-group">
+                        <label for="input-temperature">Temperature <span class="range-value"
+                                id="temp-value">0.9</span></label>
+                        <input type="range" id="input-temperature" min="0" max="2" step="0.05" value="0.9">
+                    </div>
+                    <div class="form-group">
+                        <label for="input-top-p">Top P <span class="range-value" id="top-p-value">0.95</span></label>
+                        <input type="range" id="input-top-p" min="0" max="1" step="0.05" value="0.95">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="input-top-k">Top K <span class="optional">(0=off)</span></label>
+                            <input type="number" id="input-top-k" class="input-field" min="0" max="500" value="40">
+                        </div>
+                        <div class="form-group">
+                            <label for="input-min-p">Min P</label>
+                            <input type="number" id="input-min-p" class="input-field" min="0" max="1" step="0.01"
+                                value="0.05">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-rep-penalty">Repetition Penalty <span class="range-value"
+                                id="rep-value">1.1</span></label>
+                        <input type="range" id="input-rep-penalty" min="1" max="2" step="0.05" value="1.1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button id="btn-save-settings" class="btn btn-primary">Save Settings</button>
+                <button id="btn-close-settings-2" class="btn btn-ghost">Cancel</button>
             </div>
         </div>
     </div>
@@ -85,11 +169,14 @@
             <div class="player-setup hidden" id="player-setup">
                 <div class="form-group">
                     <label for="input-player-name">Your Character Name</label>
-                    <input type="text" id="input-player-name" class="input-field" placeholder="Enter a name..." value="Detective Gray">
+                    <input type="text" id="input-player-name" class="input-field" placeholder="Enter a name..."
+                        value="Detective Gray">
                 </div>
                 <div class="form-group">
-                    <label for="input-player-desc">Character Description <span class="optional">(optional)</span></label>
-                    <textarea id="input-player-desc" class="input-field textarea" rows="3" placeholder="Describe your character's background and personality..."></textarea>
+                    <label for="input-player-desc">Character Description <span
+                            class="optional">(optional)</span></label>
+                    <textarea id="input-player-desc" class="input-field textarea" rows="3"
+                        placeholder="Describe your character's background and personality..."></textarea>
                 </div>
                 <button id="btn-start-game" class="btn btn-primary btn-glow btn-lg">
                     <span class="btn-text">Begin the Mystery</span>
@@ -154,7 +241,8 @@
                 <div class="game-header">
                     <h2 id="scenario-title" class="scenario-title"></h2>
                     <div class="game-header-actions">
-                        <button id="btn-accuse" class="btn btn-danger btn-sm" title="Make your accusation">⚖ Accuse</button>
+                        <button id="btn-accuse" class="btn btn-danger btn-sm" title="Make your accusation">⚖
+                            Accuse</button>
                     </div>
                 </div>
 
@@ -166,12 +254,15 @@
 
                 <div class="action-bar">
                     <div class="action-input-row">
-                        <input type="text" id="input-message" class="input-field input-message" placeholder="Say something to the NPC...">
+                        <input type="text" id="input-message" class="input-field input-message"
+                            placeholder="Say something to the NPC...">
                         <button id="btn-send" class="btn btn-primary btn-send" disabled>Send</button>
                     </div>
                     <div class="action-buttons">
-                        <button id="btn-investigate" class="btn btn-outline btn-action" title="Search the current location">🔍 Investigate</button>
-                        <button id="btn-wait" class="btn btn-outline btn-action" title="Wait and observe">⏳ Wait</button>
+                        <button id="btn-investigate" class="btn btn-outline btn-action"
+                            title="Search the current location">🔍 Investigate</button>
+                        <button id="btn-wait" class="btn btn-outline btn-action" title="Wait and observe">⏳
+                            Wait</button>
                     </div>
                 </div>
             </main>
@@ -207,7 +298,8 @@
             </div>
             <div class="form-group">
                 <label for="input-reasoning">Your reasoning <span class="optional">(optional)</span></label>
-                <textarea id="input-reasoning" class="input-field textarea" rows="3" placeholder="Explain your deduction..."></textarea>
+                <textarea id="input-reasoning" class="input-field textarea" rows="3"
+                    placeholder="Explain your deduction..."></textarea>
             </div>
             <div class="form-actions">
                 <button id="btn-confirm-accuse" class="btn btn-danger">Confirm Accusation</button>
@@ -229,4 +321,5 @@
 
     <script src="js/app.js"></script>
 </body>
+
 </html>
