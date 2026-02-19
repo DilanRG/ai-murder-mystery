@@ -1,0 +1,55 @@
+{
+    "name": "ai-murder-mystery",
+    "version": "0.1.0",
+    "description": "AI Murder Mystery Game — An Among Us-inspired murder mystery with AI-driven NPCs",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "build": "electron-builder",
+        "build:win": "electron-builder --win",
+        "build:mac": "electron-builder --mac",
+        "build:linux": "electron-builder --linux"
+    },
+    "author": "AI Murder Mystery",
+    "license": "MIT",
+    "devDependencies": {
+        "electron": "^28.0.0",
+        "electron-builder": "^24.0.0"
+    },
+    "build": {
+        "appId": "com.ai-murder-mystery.game",
+        "productName": "AI Murder Mystery",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "**/*",
+            "!dist/**"
+        ],
+        "extraResources": [
+            {
+                "from": "../dist/backend",
+                "to": "backend"
+            }
+        ],
+        "win": {
+            "target": [
+                "nsis",
+                "portable"
+            ],
+            "icon": null
+        },
+        "mac": {
+            "target": [
+                "dmg"
+            ],
+            "icon": null
+        },
+        "linux": {
+            "target": [
+                "AppImage"
+            ],
+            "icon": null
+        }
+    }
+}

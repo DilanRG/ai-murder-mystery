@@ -1,0 +1,22 @@
+# AI Murder Mystery Game - Backend Dependencies
+# Core
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# HTTP Client (for LLM API calls)
+httpx>=0.25.0
+
+# Template Engine
+jinja2>=3.1.0
+
+# Vector Database
+chromadb>=0.4.0
+
+# Token counting
+tiktoken>=0.5.0
+
+# Utilities
+orjson>=3.9.0

@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.spec
+venv/
+.venv/
+
+# Environment
+.env
+.env.local
+
+# Node / Electron
+node_modules/
+frontend/dist/
+frontend/out/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ChromaDB data
+chroma_data/
+
+# Artifacts
+.gemini/

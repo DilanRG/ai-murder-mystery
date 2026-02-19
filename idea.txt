@@ -1,0 +1,21 @@
+I want to make an amongus type murder mystery game with AI characters + one player character.
+
+how the game works - a total of 8 characters (including the player) in a session + the dead person
+
+the player selects if they are the detective searching for the culprit or the murderer trying to escape the (AI) detective.
+
+Player should have the ability to define their character in a character description if they wish.
+
+7 other NPC characters (8 npc characters including the dead character) should be choosen from a predefined pool in random. (character card v2 spec) (lot's of unique character.json files in a folder)
+
+the game should prompt the AI to generate the scenario for the game to take place in. (take in the NPC characters and player character info if present) Take something like Murder of the orient express as an example. Mixed in stealth assassination from hitman games for a little added spice. Like there's an original murder that starts the round. Game should end after the detective find and expose the killer according to their hypothesis. If they find the real killer then the detective win, if not the killer win.
+Most importantly, the game scenario that the AI generated should include hints. for the detective to find. other NPC characters should also have clues that they will share (with varying difficulty to obtain)
+
+Each npc character should not be aware of other NCP characters' intents and motives. (the program should prompt the AI to respond as that npc character for their turn) There should be a local vector db that includes everything for the AI to access so it can properly construct responses. (with each NPC character only having access to information relevant to them)
+
+program should only reveal information to the player according to how the game progress. If the player is detective, the program shouldn't reveal who the killer is or who hold which clue to the player at the start. They should only find it as they interact with other NPCs and progress through the story. If the player is the killer, then the program shouldn't reveal the progress detective has made to the player (unless they interact with the detective and the detective reveals it themselves).
+
+there should be multiple locations that the characters should be moving around to give a dynamic feeling and have different characters interact with each other privately/ in different groups.
+
+
+Backend should support local llm deployment from llama.cpp/kobold.cpp as well as cloud models providers like AIHorde and openrouter and other openai compatible api endpoints. sampler and instruct presets (jinja) similar to what's present in silly tavern as well as system prompt and author's note. For the initial implementation only implement openrouter api connectivity.
