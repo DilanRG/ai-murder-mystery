@@ -32,12 +32,19 @@ function createWindow() {
             nodeIntegration: false,
         },
         icon: null,
-        show: false,
+        icon: null,
+        show: true, // Show immediately for debugging
     });
 
     mainWindow.loadFile('index.html');
 
+    // Debugging events
+    mainWindow.webContents.on('did-finish-load', () => {
+        console.log('[Window] Content loaded');
+    });
+
     mainWindow.once('ready-to-show', () => {
+        console.log('[Window] Ready to show');
         mainWindow.show();
     });
 
@@ -69,7 +76,7 @@ function getBackendPath() {
 
 function startBackend() {
     if (!app.isPackaged) {
-        console.log('[Backend] Dev mode — expecting backend at', BACKEND_URL);
+        console.log('[Backend] Dev mode - expecting backend at', BACKEND_URL);
         console.log('[Backend] Start it manually: cd backend && python -m uvicorn main:app --port 8765');
         return;
     }
