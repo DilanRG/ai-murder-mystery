@@ -1,6 +1,6 @@
 {
     "name": "ai-murder-mystery",
-    "version": "0.1.1-alpha",
+    "version": "0.1.2-alpha",
     "description": "AI Murder Mystery Game — An Among Us-inspired murder mystery with AI-driven NPCs",
     "main": "main.js",
     "scripts": {
