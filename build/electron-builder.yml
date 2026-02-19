@@ -33,7 +33,6 @@ mac:
     - target: dmg
       arch:
         - x64
-        - arm64
   artifactName: "MurderMystery-${version}-mac-${arch}.${ext}"
   category: public.app-category.games
   icon: null
