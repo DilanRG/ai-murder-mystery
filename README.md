@@ -26,11 +26,7 @@ python -m venv venv
 venv\Scripts\activate   # On Mac/Linux: source venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Configure your API key
-cp .env.example .env
-# Edit .env and add your OpenRouter API key
-
-# 3. Install Electron dependencies
+# 2. Install Electron dependencies
 cd ../frontend
 npm install
 ```
