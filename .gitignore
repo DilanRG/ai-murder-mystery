@@ -33,3 +33,7 @@ chroma_data/
 
 # Artifacts
 .gemini/
+
+# Misc
+.agent/
+idea.txt
